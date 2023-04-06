@@ -4,19 +4,20 @@
 #include <math.h>
 #include <time.h>
 
-#define HEIGHT 22
-#define WIDTH 10
+#define HEIGHT 28
+#define WIDTH 14
 #define SMALL_HEIGHT 4
 #define SMALL_WIDTH 4
 #define TRUE 1
 #define FALSE 0
-#define DELAY 16
+#define DELAY 20
 #define RIGHT 1
 #define LEFT -1
 #define SCREEN_WIDTH gfx_screenWidth()
 #define SCREEN_HEIGHT gfx_screenHeight()
 #define PIXEL (SCREEN_HEIGHT/(HEIGHT+1))
 #define FALLING_SPEED 20
+#define ROTATION 10
 
 int block_position[WIDTH][HEIGHT] = {0};
 int moving_block_position[WIDTH][HEIGHT] = {0};
@@ -28,6 +29,7 @@ int piece_shape = 0;
 int piece_rotation = 0;
 int next_piece_shape = 0;
 int next_piece_rotation = 0;
+int rotation_speed = 0;
 
 int pieces[7 /*kind */ ][4 /* rotation */ ][4][4] =
 {
@@ -233,13 +235,15 @@ void falling_blocks();
 void controlls();
 void rotate_block();
 void calculate_block_origin(int rotation_x, int rotation_y);
-int check_rotation_posibility(int block_origin_x, int block_origin_y, int next_rotation);
+int check_rotation_posibility(int block_origin_x, int block_origin_y, int next_rotation, int width_with_piece);
 void move_to_side(int side);
 void move_down();
 void add_to_fallen();
 void loosing();
 void check_full_line();
 void remove_full_line(int row_to_remove);
+void falling_down();
+int right_rotation_check(int next_rotation);
 
 int main(int argc, char* argv[])
 {
@@ -269,14 +273,7 @@ int main(int argc, char* argv[])
 
     controlls();
 
-		if(movement % FALLING_SPEED == 0)
-    {
-        while(movement > FALLING_SPEED)
-        {
-          movement -= FALLING_SPEED;
-        }
-        falling_blocks();
-    }
+		falling_down();
 		
 		draw_moving_block();
 
@@ -298,13 +295,26 @@ int main(int argc, char* argv[])
 
 void controlls()
 {
+  static int last_rotation = 0;
 	int left = FALSE;
 	int right = TRUE;
-  
-	if(gfx_isKeyDown(SDLK_SPACE))
-	{
-		rotate_block();
-	}
+  rotation_speed++;
+  if (gfx_isKeyDown(SDLK_SPACE))
+  {
+    if (rotation_speed - last_rotation > 10)
+    {
+      rotate_block();
+      last_rotation = rotation_speed;
+    }
+  }
+  // if(rotation_speed % ROTATION == 0)
+  // {
+  //   while(rotation_speed > ROTATION)
+  //       {
+  //         rotation_speed -= ROTATION;
+  //       }
+ 
+  // }
 	if(gfx_isKeyDown(SDLK_RIGHT))
 	{
 		move_to_side(right);
@@ -540,6 +550,7 @@ void calculate_block_origin(int rotation_x, int rotation_y)
   int next_rotation_center_x, next_rotation_center_y;
   int block_origin_x, block_origin_y;
   int next_rotation;
+  int current_rotaton = piece_rotation;
   next_rotation = (piece_rotation + 1)%4;
   piece_rotation = next_rotation;
   /*find the center of rotation of the next rotation of the block*/
@@ -559,9 +570,10 @@ void calculate_block_origin(int rotation_x, int rotation_y)
   block_origin_x = rotation_x - next_rotation_center_x;
   block_origin_y = rotation_y - next_rotation_center_y;
   /*check if rotation is posible and rotate*/
-  if(block_origin_x > 0 && block_origin_x + 4 <= WIDTH && block_origin_y > 0 && block_origin_y + 4 < HEIGHT)
+  int width_with_piece = right_rotation_check(next_rotation);
+  if(block_origin_x >= 0 && block_origin_x + width_with_piece < WIDTH && block_origin_y >= 0 && block_origin_y + 3 < HEIGHT)
   {
-    if(check_rotation_posibility(block_origin_x, block_origin_y, next_rotation))
+    if(check_rotation_posibility(block_origin_x, block_origin_y, next_rotation, width_with_piece))
     {
       for(int column = 0; column < WIDTH; column++)
       {
@@ -570,7 +582,7 @@ void calculate_block_origin(int rotation_x, int rotation_y)
           moving_block_position[column][row] = 0;
         }
       }
-      for(int column = 0; column < 4; column++)
+      for(int column = 0; column <= width_with_piece; column++)
       {
         for(int row = 0; row < 4; row++)
         {
@@ -579,14 +591,33 @@ void calculate_block_origin(int rotation_x, int rotation_y)
         }
       }
     }
+    else piece_rotation = current_rotaton;
   }
-  SDL_Delay(100);
+  else piece_rotation = current_rotaton;
 }
 
-int check_rotation_posibility(int block_origin_x, int block_origin_y, int next_rotation)
+int right_rotation_check(int next_rotation)
+{
+  /*find which column is the last that poseses block and return ist number*/
+  int column = 3;
+  int row = 3;
+  while(pieces[piece_shape][next_rotation][column][row] == 0)
+  {
+    if(row == 0)
+    {
+      row = 3;
+      column--;
+    }
+    row--;
+  }
+  //printf("column with piece: %d\n", column);
+  return column;
+}
+
+int check_rotation_posibility(int block_origin_x, int block_origin_y, int next_rotation, int width_with_piece)
 {
   /*check if rotation is posible according to fallen blocks*/
-  for(int column = 0; column < 4; column++)
+  for(int column = 0; column < width_with_piece; column++)
       {
         for(int row = 0; row < 4; row++)
         {
@@ -726,4 +757,16 @@ void remove_full_line(int row_to_remove)
       }
     }
   }
+}
+
+void falling_down()
+{
+  if(movement % FALLING_SPEED == 0)
+    {
+        while(movement > FALLING_SPEED)
+        {
+          movement -= FALLING_SPEED;
+        }
+        falling_blocks();
+    }
 }
